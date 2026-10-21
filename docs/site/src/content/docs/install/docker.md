@@ -66,7 +66,7 @@ The example builds from local source. For the published image, change `build: .`
 
 The container runs as **UID 1000**, no shell, with a **read-only root filesystem** (`/tmp` is `tmpfs`) and `no-new-privileges`.
 
-To also make the server unable to change anything on the controller, add `MCP_UNIFI_READONLY=true` to your `.env`. Mutating tools are then hidden from `tools/list` and refused on `tools/call`; reads are unaffected. Pair it with a read-only UniFi API key rather than treating either as sufficient alone — see the [Security guide](/mcp-unifi/guides/security/#read-only-mode).
+The image also sets `MCP_UNIFI_READONLY=true`, so a container that does not override it is unable to change the controller: mutating tools are hidden from `tools/list` and refused on `tools/call`, and reads are unaffected. Set `MCP_UNIFI_READONLY=false` to opt that container back into writes. Pair the default with a read-only UniFi API key rather than treating either as sufficient alone — see the [Security guide](/mcp-unifi/guides/security/#read-only-mode).
 
 ## Verify
 

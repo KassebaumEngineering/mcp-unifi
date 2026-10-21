@@ -127,7 +127,7 @@ All config is read from environment variables (and `.env` when present). The six
 | `STUB_MODE` | `true` | When `false`, real-mode controller config is required. |
 | `UNIFI_HOST` | (empty) | Gateway IP or hostname. Required in real mode. |
 | `UNIFI_API_KEY` | (empty) | Local API key. Required in real mode. |
-| `MCP_UNIFI_READONLY` | `false` | When `true`, mutating tools are hidden and refused. See the [Security guide](https://pete-builds.github.io/mcp-unifi/guides/security/#read-only-mode). |
+| `MCP_UNIFI_READONLY` | `false` (image: `true`) | When `true`, mutating tools are hidden and refused. The Docker image sets `true`; unset, the process default stays `false`. See the [Security guide](https://pete-builds.github.io/mcp-unifi/guides/security/#read-only-mode). |
 | `MCP_UNIFI_MODULES_ENABLED` | `network` | Set to `network,protect,access` to enable all three modules. |
 | `MCP_UNIFI_CONTROLLERS_FILE` | (unset) | YAML file with named controllers for multi-site. |
 | `MCP_UNIFI_OTEL_ENABLED` | `false` | Optional OpenTelemetry tracing, one span per tool call. Off by default and the SDK is not a dependency. See [Operations](docs/operations.md). |

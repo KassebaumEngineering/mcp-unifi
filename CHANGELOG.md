@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- **`fastmcp` floor is `>=4.1.3,<5`, and `certifi>=2026.10.19` is a direct
+  dependency.** The lock resolves both at those versions or newer.
+- **The Docker image defaults to read-only mode.** `MCP_UNIFI_READONLY=true`
+  is set in the runtime image, so mutating tools are hidden from `tools/list`
+  and refused on `tools/call` unless a container overrides the variable.
+  Non-container installs still default to `false`.
+
 ## [0.27.0] - 2026-10-20
 
 ### Added

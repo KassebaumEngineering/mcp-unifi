@@ -26,6 +26,7 @@ still green.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -34,7 +35,7 @@ from fastmcp import Client, FastMCP
 
 from mcp_unifi.audit import REDACTED, AuditLog, FileSink, set_audit_log
 from mcp_unifi.clients.stubs import StubState
-from mcp_unifi.config import Settings
+from mcp_unifi.config import Settings, load_settings
 from mcp_unifi.dispatcher import UnclassifiedToolError, _tag_new_tools
 from mcp_unifi.modules._audit import audited, classified_tools
 from mcp_unifi.modules.network._common import make_err
@@ -524,3 +525,90 @@ def test_readonly_appears_in_safe_repr() -> None:
     assert Settings(stub_mode=True, auth_required=False, readonly=True).safe_repr()["readonly"] is (
         True
     )
+
+
+# ---------------------------------------------------------------------------
+# Image default: the Dockerfile sets the env var the gate reads
+# ---------------------------------------------------------------------------
+
+_DOCKERFILE = Path(__file__).resolve().parents[1] / "Dockerfile"
+
+
+def _dockerfile_runtime_instructions() -> str:
+    """Runtime-stage Dockerfile text with comments removed.
+
+    A comment that mentions the variable must not satisfy the assertion, and
+    an ENV in the builder stage is not what the image process sees.
+    """
+    text = _DOCKERFILE.read_text(encoding="utf-8")
+    marker = "AS runtime"
+    index = text.find(marker)
+    assert index != -1, "Dockerfile has no runtime stage"
+    runtime = text[index:]
+    return "\n".join(line.split("#", 1)[0] for line in runtime.splitlines())
+
+
+def test_docker_image_defaults_readonly() -> None:
+    """The image must boot with the write gate on unless an operator opts out."""
+    instructions = _dockerfile_runtime_instructions()
+    assert re.search(
+        r"(?m)^ENV\b(?:.*\\\n)*.*\bMCP_UNIFI_READONLY=true\b",
+        instructions,
+    ), "runtime image must set ENV MCP_UNIFI_READONLY=true"
+
+
+@pytest.mark.asyncio
+async def test_readonly_env_hides_mutating_tools_and_refuses_calls(
+    _all_modules_enabled: None,
+    clean_unifi_env: None,
+    stub_state: StubState,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The image default is an environment variable, not a Settings keyword.
+
+    ``load_settings`` is the path ``main`` uses. With ``MCP_UNIFI_READONLY=true``,
+    a negotiated client must not be shown a mutating tool on ``tools/list``,
+    and ``tools/call`` of one must be refused before stub state moves.
+    """
+    monkeypatch.setenv("MCP_UNIFI_READONLY", "true")
+    monkeypatch.setenv("STUB_MODE", "true")
+    monkeypatch.setenv("MCP_TRANSPORT", "stdio")
+    monkeypatch.setenv("MCP_UNIFI_AUTH_REQUIRED", "false")
+    monkeypatch.setenv("LOG_FORMAT", "text")
+
+    settings = load_settings()
+    assert settings.readonly is True
+
+    open_tools = await build_server(_settings(readonly=False)).list_tools()
+    mutating = {t.name for t in open_tools if MUTATING_TAG in t.tags}
+    assert "create_vlan" in mutating
+    assert "confirm_destructive_action" in mutating
+    assert len(mutating) > 50
+
+    server = build_server(settings, stub=stub_state)
+    before = list(stub_state.networks)
+    async with Client(server) as client:
+        listed = await client.list_tools()
+        names = {tool.name for tool in listed}
+        leaked = sorted(mutating & names)
+        assert leaked == [], f"tools/list exposed mutating tools: {leaked}"
+        assert "list_networks" in names
+        assert "backup_config" in names
+
+        created = await client.call_tool(
+            "create_vlan",
+            {"name": "ShouldNotExist", "vlan_id": 99, "subnet": "10.0.99.0/24"},
+        )
+        assert created.structured_content is not None
+        assert "read-only mode" in created.structured_content["error"]
+        assert "create_vlan" in created.structured_content["error"]
+
+        confirmed = await client.call_tool(
+            "confirm_destructive_action",
+            {"token": "anything"},
+        )
+        assert confirmed.structured_content is not None
+        assert "read-only mode" in confirmed.structured_content["error"]
+
+    assert stub_state.networks == before
+    assert not any(n.get("name") == "ShouldNotExist" for n in stub_state.networks)

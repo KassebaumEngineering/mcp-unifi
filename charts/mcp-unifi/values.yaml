@@ -31,6 +31,8 @@ modulesEnabled: "network"
 # hidden from tools/list and refused on tools/call; read tools are unaffected.
 # Defense in depth on top of a read-only UniFi API key — pair the two rather
 # than picking one.
+# The container image sets MCP_UNIFI_READONLY=true. This chart sets the
+# variable explicitly, so the value here wins over the image default.
 readOnly: false
 
 # HTTP transport authentication (v0.9.0+).
