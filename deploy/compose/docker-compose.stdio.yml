@@ -1,0 +1,71 @@
+# Stdio alternative to docker-compose.yml. Same read-only container, no HTTP
+# listener and no bearer token. The parent process owns the security boundary.
+#
+# From this directory:
+#   docker compose -f docker-compose.stdio.yml run --rm --no-deps mcp-unifi
+#
+# Do not `up -d` this file. Stdio is a session, and restart is off.
+# MCP_UNIFI_READONLY is hardcoded the same way as the HTTP file.
+
+name: mcp-unifi-stdio
+
+services:
+  mcp-unifi:
+    image: ${MCP_UNIFI_IMAGE:-ghcr.io/pete-builds/mcp-unifi:0.27.0}
+    restart: "no"
+    network_mode: host
+    stdin_open: true
+    tty: true
+    user: "1000:1000"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    tmpfs:
+      - /tmp:size=16M,mode=1777
+    entrypoint:
+      - python
+      - -c
+      - "import os, runpy; os.environ['MCP_UNIFI_READONLY'] = 'true'; runpy.run_module('mcp_unifi.server', run_name='__main__')"
+    environment:
+      MCP_TRANSPORT: stdio
+      MCP_UNIFI_READONLY: "true"
+      MCP_UNIFI_CONTROLLERS_FILE: /etc/mcp-unifi/controllers.yaml
+      MCP_UNIFI_DEFAULT_CONTROLLER: ${MCP_UNIFI_DEFAULT_CONTROLLER:-home}
+      MCP_UNIFI_MODULES_ENABLED: ${MCP_UNIFI_MODULES_ENABLED:-network}
+      MCP_UNIFI_AUDIT_SINK: file
+      MCP_UNIFI_AUDIT_PATH: /var/lib/mcp-unifi/audit.jsonl
+      STUB_MODE: ${STUB_MODE:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - type: bind
+        source: ./controllers.yaml
+        target: /etc/mcp-unifi/controllers.yaml
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./pins:/etc/mcp-unifi/pins:ro
+      - audit-log:/var/lib/mcp-unifi
+    secrets:
+      - unifi_api_key_home
+      - unifi_api_key_cabin
+    healthcheck:
+      disable: true
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+secrets:
+  unifi_api_key_home:
+    file: ./secrets/unifi_api_key_home
+  unifi_api_key_cabin:
+    file: ./secrets/unifi_api_key_cabin
+
+volumes:
+  audit-log:
+    name: mcp-unifi-audit-log

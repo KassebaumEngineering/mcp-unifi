@@ -118,6 +118,10 @@ Fastest cold-start: Docker + Claude Code in stub mode, no hardware required.
 
 Generate the API key under **Settings → Control Plane → Integrations → Create API Key** on the gateway.
 
+## Hardened standalone deployment
+
+[`deploy/compose/`](deploy/compose/README.md) runs one read-only container on a VM or LXC. There is no Kubernetes chart and no Home Assistant add-on in that path. Point it at another machine, or at another gateway, by editing the files in that directory: `MCP_UNIFI_READONLY` is hardcoded on, and the HTTP listener has no all-interfaces default.
+
 ## Configuration
 
 All config is read from environment variables (and `.env` when present). The six most common:

@@ -1,0 +1,97 @@
+# Standalone read-only mcp-unifi.
+#
+# Point this at another machine or another gateway by editing .env,
+# controllers.yaml, secrets/, and pins/. See README.md in this directory.
+#
+# MCP_UNIFI_READONLY is a literal, and the entrypoint sets it again after
+# Docker has applied the environment. .env cannot turn it off. Changing it
+# means editing this file. There is no all-interfaces bind: MCP_HOST is
+# BIND_ADDR, BIND_ADDR has no default, and this file does not publish a port.
+
+name: mcp-unifi
+
+services:
+  mcp-unifi:
+    image: ${MCP_UNIFI_IMAGE:-ghcr.io/pete-builds/mcp-unifi:0.27.0}
+    restart: unless-stopped
+    # Host network so the process binds to BIND_ADDR on this machine.
+    # A published port with no address would listen on every host address.
+    network_mode: host
+    user: "1000:1000"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    tmpfs:
+      - /tmp:size=16M,mode=1777
+    entrypoint:
+      - python
+      - -c
+      - "import os, runpy; os.environ['MCP_UNIFI_READONLY'] = 'true'; runpy.run_module('mcp_unifi.server', run_name='__main__')"
+    environment:
+      MCP_TRANSPORT: streamable-http
+      MCP_HOST: "${BIND_ADDR:?Set BIND_ADDR in .env to this host Tailscale IPv4 address}"
+      MCP_PORT: ${MCP_PORT:-3714}
+      MCP_UNIFI_READONLY: "true"
+      MCP_UNIFI_AUTH_REQUIRED: "true"
+      MCP_UNIFI_AUTH_TOKEN_FILE: /run/secrets/mcp_unifi_token
+      MCP_UNIFI_CLIENT_ID: ${MCP_UNIFI_CLIENT_ID:-audit}
+      MCP_UNIFI_CONTROLLERS_FILE: /etc/mcp-unifi/controllers.yaml
+      MCP_UNIFI_DEFAULT_CONTROLLER: ${MCP_UNIFI_DEFAULT_CONTROLLER:-home}
+      MCP_UNIFI_MODULES_ENABLED: ${MCP_UNIFI_MODULES_ENABLED:-network}
+      MCP_UNIFI_AUDIT_SINK: file
+      MCP_UNIFI_AUDIT_PATH: /var/lib/mcp-unifi/audit.jsonl
+      STUB_MODE: ${STUB_MODE:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      TZ: ${TZ:-UTC}
+    volumes:
+      # create_host_path false: a missing controllers.yaml must fail, not
+      # become a directory that Docker then mounts over the file path.
+      - type: bind
+        source: ./controllers.yaml
+        target: /etc/mcp-unifi/controllers.yaml
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./pins:/etc/mcp-unifi/pins:ro
+      - audit-log:/var/lib/mcp-unifi
+    secrets:
+      - mcp_unifi_token
+      - unifi_api_key_home
+      - unifi_api_key_cabin
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import os, urllib.request; host = os.environ['MCP_HOST']; port = os.environ.get('MCP_PORT', '3714'); urllib.request.urlopen('http://' + host + ':' + port + '/health', timeout=5)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+secrets:
+  mcp_unifi_token:
+    file: ./secrets/mcp_unifi_token
+  unifi_api_key_home:
+    file: ./secrets/unifi_api_key_home
+  unifi_api_key_cabin:
+    file: ./secrets/unifi_api_key_cabin
+
+volumes:
+  audit-log:
+    name: mcp-unifi-audit-log
