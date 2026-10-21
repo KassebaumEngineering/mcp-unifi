@@ -269,4 +269,4 @@ async def test_end_to_end_listed_tools_drop_the_synthetic_output_schema(
     async with Client(stdio_server) as client:
         tools = await client.list_tools()
         listed = {t.name: t for t in tools}
-        assert listed["list_wlans"].outputSchema is None
+        assert listed["list_wlans"].output_schema is None

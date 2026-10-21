@@ -68,10 +68,10 @@ async def test_annotations_agree_with_the_write_gate() -> None:
     """
     tools = await _tools()
     disagreements = sorted(
-        f"{name}: readOnlyHint={t.annotations.readOnlyHint} but "
+        f"{name}: readOnlyHint={t.annotations.read_only_hint} but "
         f"gate says mutating={MUTATING_TAG in t.tags}"
         for name, t in tools.items()
-        if t.annotations.readOnlyHint is (MUTATING_TAG in t.tags)
+        if t.annotations.read_only_hint is (MUTATING_TAG in t.tags)
     )
     assert disagreements == []
 
@@ -89,10 +89,10 @@ async def test_the_tools_a_prefix_classifier_misses_are_right() -> None:
     wrong = sorted(
         name
         for name in NO_PREFIX_MUTATING_TOOLS
-        if tools[name].annotations.readOnlyHint is (name in gate_mutating)
+        if tools[name].annotations.read_only_hint is (name in gate_mutating)
     )
     assert wrong == []
-    assert tools["backup_config"].annotations.readOnlyHint is True
+    assert tools["backup_config"].annotations.read_only_hint is True
 
 
 @pytest.mark.asyncio
@@ -107,7 +107,7 @@ async def test_the_deletions_are_marked_destructive() -> None:
         "restore_config",
         "confirm_destructive_action",
     }
-    missing = sorted(n for n in expected if not tools[n].annotations.destructiveHint)
+    missing = sorted(n for n in expected if not tools[n].annotations.destructive_hint)
     assert missing == []
 
 
@@ -123,9 +123,9 @@ async def test_confirm_destructive_action_is_marked_destructive() -> None:
     with the same token is an error rather than a no-op.
     """
     ann = (await _tools())["confirm_destructive_action"].annotations
-    assert ann.destructiveHint is True
-    assert ann.readOnlyHint is False
-    assert ann.idempotentHint is False
+    assert ann.destructive_hint is True
+    assert ann.read_only_hint is False
+    assert ann.idempotent_hint is False
 
 
 @pytest.mark.asyncio
@@ -135,7 +135,7 @@ async def test_creates_are_not_idempotent() -> None:
     wrong = sorted(
         n
         for n in tools
-        if n.startswith(("create_", "provision_")) and tools[n].annotations.idempotentHint
+        if n.startswith(("create_", "provision_")) and tools[n].annotations.idempotent_hint
     )
     assert wrong == []
 
@@ -152,7 +152,7 @@ async def test_updates_and_sets_are_idempotent() -> None:
         n
         for n in tools
         if n.startswith(("update_", "set_", "toggle_"))
-        and tools[n].annotations.idempotentHint is not True
+        and tools[n].annotations.idempotent_hint is not True
     )
     assert wrong == []
 
@@ -165,16 +165,16 @@ async def test_trigger_speedtest_is_neither_read_only_nor_destructive() -> None:
     idempotent would invite a second one on top of the first.
     """
     ann = (await _tools())["trigger_speedtest"].annotations
-    assert ann.readOnlyHint is False
-    assert ann.destructiveHint is False
-    assert ann.idempotentHint is False
+    assert ann.read_only_hint is False
+    assert ann.destructive_hint is False
+    assert ann.idempotent_hint is False
 
 
 @pytest.mark.asyncio
 async def test_every_tool_declares_an_open_world() -> None:
     """Every registered tool talks to a UniFi controller; none operates on a closed set."""
     tools = await _tools()
-    closed = sorted(n for n, t in tools.items() if t.annotations.openWorldHint is not True)
+    closed = sorted(n for n, t in tools.items() if t.annotations.open_world_hint is not True)
     assert closed == []
 
 
@@ -182,6 +182,8 @@ async def test_every_tool_declares_an_open_world() -> None:
 async def test_no_tool_is_both_read_only_and_destructive() -> None:
     tools = await _tools()
     contradictory = sorted(
-        n for n, t in tools.items() if t.annotations.readOnlyHint and t.annotations.destructiveHint
+        n
+        for n, t in tools.items()
+        if t.annotations.read_only_hint and t.annotations.destructive_hint
     )
     assert contradictory == []

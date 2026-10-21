@@ -99,7 +99,7 @@ The pin covers the Network, Protect and console-session clients on that host. Th
 
 | Variable | Type | Default | Required | Notes |
 |---|---|---|---|---|
-| `MCP_UNIFI_READONLY` | bool | `false` | no | When `true`, every tool that changes state is hidden from `tools/list` and refused on `tools/call`. Applies to both transports. Refusals come back as the standard `{"error": ..., "stub_mode": ...}` envelope, so callers need no new error handling. See the [Security guide](/mcp-unifi/guides/security/#read-only-mode). |
+| `MCP_UNIFI_READONLY` | bool | `false` | no | When `true`, every tool that changes state is hidden from `tools/list` and refused on `tools/call`. Applies to both transports. Refusals come back as the standard `{"error": ..., "stub_mode": ...}` envelope, so callers need no new error handling. The process default is `false`; the Docker image sets `true` and can be overridden per container. See the [Security guide](/mcp-unifi/guides/security/#read-only-mode). |
 
 Read-only mode is defense in depth on top of a read-only UniFi API key, not a
 replacement for one. The key decides what the controller will accept; this

@@ -82,6 +82,12 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app/site-packages \
     PATH=/app/site-packages/bin:$PATH
 
+# Read-only is the image default. Mutating tools are hidden from tools/list
+# and refused on tools/call. -e MCP_UNIFI_READONLY=false opts a container back
+# into writes. The Python default stays false so non-container installs are
+# unchanged; this ENV is what the image process actually sees.
+ENV MCP_UNIFI_READONLY=true
+
 # Non-root user with pinned UID 1000 (no shell, no home).
 RUN groupadd --system --gid 1000 mcp \
     && useradd --system --uid 1000 --gid 1000 --no-create-home --shell /usr/sbin/nologin mcp
