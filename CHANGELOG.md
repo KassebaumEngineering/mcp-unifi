@@ -15,6 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is set in the runtime image, so mutating tools are hidden from `tools/list`
   and refused on `tools/call` unless a container overrides the variable.
   Non-container installs still default to `false`.
+- **Helm `readOnly` defaults to `true`.** The chart sets `MCP_UNIFI_READONLY`
+  explicitly, so the previous default of `false` overrode the image. Set
+  `readOnly: false` in `values.yaml` only for a deployment that may write.
+
+### Added
+
+- **Standalone Compose deployment** under `deploy/compose/`. One read-only
+  container, HTTP bound to `BIND_ADDR` (no all-interfaces default), file
+  secrets, pinned controller certificates, and a named audit volume. A stdio
+  Compose file is the alternative. Repoint it by editing files in that
+  directory. See `deploy/compose/README.md`.
+- **Read-only UniFi audit skill** at `skills/unifi-readonly-audit/SKILL.md`.
+  It maps each check to a tool registered in this repo and lists the API
+  surfaces that have no tool.
 
 ## [0.27.0] - 2026-10-20
 

@@ -37,6 +37,14 @@ env/
 !.env.example
 docker-compose.override.yml
 
+# Standalone compose deployment: real config and secret files stay local.
+# The example, the secrets README, and pins/.gitkeep stay tracked.
+deploy/compose/controllers.yaml
+deploy/compose/secrets/*
+!deploy/compose/secrets/README
+deploy/compose/pins/*
+!deploy/compose/pins/.gitkeep
+
 # Internal Forge agent build notes (not for public consumption)
 SESSION-RESUME.md
 

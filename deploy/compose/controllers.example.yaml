@@ -1,0 +1,31 @@
+# Copy to controllers.yaml (gitignored) and replace host, site, and the pin
+# filename for each gateway you actually have. Delete a gateway you do not
+# have, and delete its secret from docker-compose.yml and
+# docker-compose.stdio.yml in the same edit.
+#
+# api_key_file paths are inside the container. Do not put key material in
+# this file.
+#
+# verify_ssl: true is required by this deployment. This server has no
+# CA-bundle field. pinned_cert is the trust anchor: the certificate the
+# gateway presents, recorded with mcp-unifi-pin-cert. A gateway whose
+# certificate was signed by a private CA is pinned the same way. Setting
+# verify_ssl false is rejected when pinned_cert is set, and this deployment
+# does not use that combination.
+
+controllers:
+  - name: home
+    host: 192.168.1.1
+    port: 443
+    site: default
+    api_key_file: /run/secrets/unifi_api_key_home
+    verify_ssl: true
+    pinned_cert: /etc/mcp-unifi/pins/home.pem
+
+  - name: cabin
+    host: 10.10.10.1
+    port: 443
+    site: default
+    api_key_file: /run/secrets/unifi_api_key_cabin
+    verify_ssl: true
+    pinned_cert: /etc/mcp-unifi/pins/cabin.pem

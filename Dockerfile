@@ -89,8 +89,14 @@ ENV PYTHONUNBUFFERED=1 \
 ENV MCP_UNIFI_READONLY=true
 
 # Non-root user with pinned UID 1000 (no shell, no home).
+# /var/lib/mcp-unifi is the audit-log mount point. A named volume mounted
+# here for the first time is seeded from this directory, including ownership,
+# so uid 1000 can append audit.jsonl without a root init container. An
+# existing volume is not re-seeded.
 RUN groupadd --system --gid 1000 mcp \
-    && useradd --system --uid 1000 --gid 1000 --no-create-home --shell /usr/sbin/nologin mcp
+    && useradd --system --uid 1000 --gid 1000 --no-create-home --shell /usr/sbin/nologin mcp \
+    && mkdir -p /var/lib/mcp-unifi \
+    && chown mcp:mcp /var/lib/mcp-unifi
 
 WORKDIR /app
 COPY --from=builder /wheels /app/site-packages

@@ -33,7 +33,9 @@ modulesEnabled: "network"
 # than picking one.
 # The container image sets MCP_UNIFI_READONLY=true. This chart sets the
 # variable explicitly, so the value here wins over the image default.
-readOnly: false
+# The chart default is true. Set false only by editing this file, and only
+# for a deployment that is intentionally allowed to write.
+readOnly: true
 
 # HTTP transport authentication (v0.9.0+).
 # `tokens` is a comma-separated list of bearer tokens. Each entry is either a
