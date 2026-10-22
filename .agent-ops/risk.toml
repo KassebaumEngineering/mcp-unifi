@@ -95,6 +95,7 @@ paths = [
   "src/mcp_unifi/modules/network/wlans.py",
   "src/mcp_unifi/modules/network/_common.py",
   "src/mcp_unifi/modules/network/_verify.py",
+  "src/mcp_unifi/verification.py",
   "src/mcp_unifi/modules/network/_zone_policy.py",
 ]
 
@@ -187,7 +188,7 @@ paths = ["**/*.md", "docs/site/src/content/**", "docs/site/src/data/**"]
 tier = "T3"
 reason = "CI or hook change selects tests or changes the test service image"
 paths = [".github/**"]
-pattern = '''--ignore|(?:^|[\s"'=])-k(?:[\s"'=]|$)|continue-on-error|\bskip\b|^\s*image:\s*\S+'''
+pattern = '''--ignore|(?:^|[\s"'=])-k(?:[\s"'=]|$)|continue-on-error|\bskip\b|^\s*image:\s*\S+|\bif:\s*false\b|\bpaths(?:-ignore)?:|--deselect|(?:^|\s)-m\s|\|\|\s*true|--exclude|\bSKIP_\w+'''
 
 [[content_rule]]
 tier = "T3"
