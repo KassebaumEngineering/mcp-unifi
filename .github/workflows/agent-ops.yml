@@ -1,0 +1,142 @@
+# Copy to .github/workflows/agent-ops.yml in a product repository in KassebaumEngineering.
+#
+# Pinned to agent-ops b0931d1640ac8e5675ca4d9d85bcf6f358169f0a (a SHA, not a tag).
+# The template in agent-ops examples/agent-ops-caller.yml still shows the zero placeholder.
+#
+# Prerequisites in the product repository:
+# - agent-ops shares its workflows with the organization (agent-ops Settings > Actions >
+#   General > Access: "Accessible from repositories in the KassebaumEngineering organization").
+# - Repository secrets AGENT_OPS_READER_APP_ID and AGENT_OPS_READER_KEY: the read-only App
+#   ke-agent-ops-reader, installed on agent-ops only. It lets these workflows check out the
+#   trusted tools; it can read agent-ops contents and nothing else.
+# - A `forge-wake` environment whose deployment branch policy is main only, holding
+#   FORGE_WAKE_URL and FORGE_WAKE_AUTH. Never create repository-level copies: any branch's
+#   pull_request run could read those. The wake job below passes both by name (Forge's B1 on #15):
+#   GitHub supplies an environment secret to the called job only when the caller passes it, and
+#   then takes the value from this repository's forge-wake environment.
+# - A risk map at .agent-ops/risk.toml (start from agent-ops' examples/<repo>.risk.toml).
+#
+# Which copy of this file runs: pull_request and pull_request_review run the branch's copy.
+# pull_request_target, issue_comment and issues run the default branch's copy, and only those
+# wake Forge. A branch run that names the wake secrets gets nothing: its own job has no
+# environment, and the forge-wake environment refuses any branch but main. The tools always come
+# from agent-ops at the pinned SHA.
+#
+# WARNING: this file is editable by a pull request (Forge's F1 on #15). A branch's copy can
+# repoint the pinned SHA, drop the gate job, or add a job with `statuses: write` that posts a
+# green agent-ops/merge-gate itself. A required status alone does not stop that. What closes it:
+# an organization ruleset that requires these workflows from agent-ops at a pinned ref (so the
+# repository's own copy is not what runs), plus CODEOWNERS giving William `.github/**`. Until
+# then, treat this repository's gate as advice, and keep workflow changes T3 and human-merged.
+#
+# After the first green run, make agent-ops/merge-gate a required check in the main-branch
+# ruleset, with no bypass for any agent App.
+#
+# A pin of agent-ops past b7fe64b3feba68e1f0e790aa947c1c12a8557234 must grant the merge-gate
+# job `checks: read`, as this file does. That commit is where merge-gate.yml started declaring
+# the permission. GitHub refuses a called job that asks for more than its caller grants, so
+# without `checks: read` the gate never starts and agent-ops/merge-gate never reports.
+#
+# Dependabot: pull_request runs that Dependabot triggers get Dependabot secrets, not Actions
+# secrets, so the reader mint fails and the tier and gate go red there. If the repository turns
+# Dependabot on, add AGENT_OPS_READER_APP_ID and AGENT_OPS_READER_KEY as Dependabot secrets too.
+
+name: agent-ops
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review, converted_to_draft, labeled, unlabeled]
+  pull_request_target:
+    types: [opened, reopened, ready_for_review]
+  issue_comment:
+    types: [created, edited, deleted]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  risk-tier:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    uses: KassebaumEngineering/agent-ops/.github/workflows/risk-tier.yml@b0931d1640ac8e5675ca4d9d85bcf6f358169f0a
+    with:
+      config: .agent-ops/risk.toml
+      agent_ops_ref: b0931d1640ac8e5675ca4d9d85bcf6f358169f0a
+    secrets:
+      AGENT_OPS_READER_APP_ID: ${{ secrets.AGENT_OPS_READER_APP_ID }}
+      AGENT_OPS_READER_KEY: ${{ secrets.AGENT_OPS_READER_KEY }}
+
+  merge-gate:
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.event_name == 'pull_request_review' ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+      statuses: write
+    uses: KassebaumEngineering/agent-ops/.github/workflows/merge-gate.yml@b0931d1640ac8e5675ca4d9d85bcf6f358169f0a
+    with:
+      config: .agent-ops/risk.toml
+      human_logins: WKassebaum,jakassebaum
+      agent_ops_ref: b0931d1640ac8e5675ca4d9d85bcf6f358169f0a
+    secrets:
+      AGENT_OPS_READER_APP_ID: ${{ secrets.AGENT_OPS_READER_APP_ID }}
+      AGENT_OPS_READER_KEY: ${{ secrets.AGENT_OPS_READER_KEY }}
+
+  # Semgrep and a secret scan of what the pull request adds (#197). Set `languages` to the
+  # repository's code: python, typescript, or both comma-separated. A new commit runs it; a
+  # label or body edit does not.
+  security:
+    if: >-
+      github.event_name == 'pull_request' &&
+      contains(fromJSON('["opened", "synchronize", "reopened", "ready_for_review"]'), github.event.action)
+    permissions:
+      contents: read
+    uses: KassebaumEngineering/agent-ops/.github/workflows/security.yml@b0931d1640ac8e5675ca4d9d85bcf6f358169f0a
+    with:
+      languages: python
+      agent_ops_ref: b0931d1640ac8e5675ca4d9d85bcf6f358169f0a
+    secrets:
+      AGENT_OPS_READER_APP_ID: ${{ secrets.AGENT_OPS_READER_APP_ID }}
+      AGENT_OPS_READER_KEY: ${{ secrets.AGENT_OPS_READER_KEY }}
+
+  # The release-readiness check (#198). It passes at once unless the pull request is an
+  # external release (the release:external label, a Release: line, or a change under releases/);
+  # then it needs releases/<version>/READINESS.md resolved in that pull request and an approving
+  # review on the head from a person on the approver list.
+  release-readiness:
+    if: github.event_name == 'pull_request' || github.event_name == 'pull_request_review'
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: KassebaumEngineering/agent-ops/.github/workflows/release-readiness.yml@b0931d1640ac8e5675ca4d9d85bcf6f358169f0a
+    with:
+      agent_ops_ref: b0931d1640ac8e5675ca4d9d85bcf6f358169f0a
+    secrets:
+      AGENT_OPS_READER_APP_ID: ${{ secrets.AGENT_OPS_READER_APP_ID }}
+      AGENT_OPS_READER_KEY: ${{ secrets.AGENT_OPS_READER_KEY }}
+
+  wake-forge:
+    if: >-
+      github.event_name == 'pull_request_target' ||
+      github.event_name == 'issues' ||
+      (github.event_name == 'issue_comment' && github.event.action == 'created')
+    permissions:
+      contents: read
+    uses: KassebaumEngineering/agent-ops/.github/workflows/wake-forge.yml@b0931d1640ac8e5675ca4d9d85bcf6f358169f0a
+    with:
+      agent_ops_ref: b0931d1640ac8e5675ca4d9d85bcf6f358169f0a
+    secrets:
+      AGENT_OPS_READER_APP_ID: ${{ secrets.AGENT_OPS_READER_APP_ID }}
+      AGENT_OPS_READER_KEY: ${{ secrets.AGENT_OPS_READER_KEY }}
+      FORGE_WAKE_URL: ${{ secrets.FORGE_WAKE_URL }}
+      FORGE_WAKE_AUTH: ${{ secrets.FORGE_WAKE_AUTH }}

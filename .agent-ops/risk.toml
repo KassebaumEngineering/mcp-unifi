@@ -1,0 +1,196 @@
+# Risk map for KassebaumEngineering/mcp-unifi.
+# Same toml shape as examples/k2-crm.risk.toml.
+# A path takes the highest matching rule. An unmatched path takes `default` (T2).
+# The author may raise a tier, never lower it.
+#
+# Confirmed against the tree on 2026-10-22 (main at 78e0d3d, release 0.27.0):
+# - Controller auth is an X-API-Key per service. src/mcp_unifi/config.py holds the
+#   Network and Access keys, the key files, the UniFi OS console password,
+#   verify_ssl, pinned_cert, and the MCP bearer tokens. tls.py and
+#   cli/pin_cert.py pin the console certificate. The clients send the keys.
+#   modules/network/console.py logs in to the console with the password.
+#   server.py turns on bearer-token auth for HTTP.
+# - The read-only gate is MCP_UNIFI_READONLY in config.py. server.py installs
+#   WriteGateMiddleware (scoping.py). It hides and refuses every tool that
+#   dispatcher.py tagged "mutating" from its @audited(..., mutates=...) flag,
+#   kept in modules/_audit.py. Deletes also need a preview token
+#   (modules/network/_pending.py) and confirm_destructive_action (confirm.py).
+#   STUB_MODE (config.py, dispatcher.py) decides whether a call reaches hardware.
+# - Writes are the mutates=True tools, listed by file below, plus the backends and
+#   clients that send POST, PUT, PATCH, or DELETE, and cli/replay.py. Files with
+#   only read tools stay at the T2 default: modules/access/__init__.py (Access has
+#   no unlock or user writes), modules/network/stats.py, and drift.py.
+#   console.py is T3 for the console login, not for writes.
+# - redaction.py strips secrets. modules/network/_common.py format_json applies it
+#   to every Network response. audit.py, logging_setup.py, and telemetry.py apply
+#   it to the audit log, logs, and trace spans.
+# - Publish is release.yml (GHCR image, cosign, a .dxt built from manifest.json),
+#   publish-mcp.yml (server.json to the MCP Registry), helm-release.yml (chart to
+#   gh-pages), and docs.yml (site to the same gh-pages branch). smithery.yaml is
+#   the Smithery listing. Deploy is the Dockerfile, docker-compose*.yml, and
+#   charts/**. dependabot-auto-merge.yml merges with no human review.
+# CI and hooks stay T2 by path. The .github content_rule raises a test-selection
+# or image-line diff to T3. The publish and auto-merge workflows are named on their
+# own T3 rules, so they still outrank the .github T2 rule. The src content_rule
+# raises a diff that adds or removes a write tool or a backend write call, so a
+# new write in a read-only file or a new file does not stay at T2.
+# The docs site build config and package files stay T2. Site content is T0.
+
+default = "T2"
+default_reason = "no rule covers this path"
+
+[[rule]]
+tier = "T3"
+reason = "UniFi API keys, console login, TLS verification or pinning, or MCP bearer-token auth"
+paths = [
+  "src/mcp_unifi/config.py",
+  "src/mcp_unifi/tls.py",
+  "src/mcp_unifi/cli/pin_cert.py",
+  "src/mcp_unifi/server.py",
+  "src/mcp_unifi/clients/unifi.py",
+  "src/mcp_unifi/clients/unifi_os.py",
+  "src/mcp_unifi/clients/protect.py",
+  "src/mcp_unifi/clients/access.py",
+  "src/mcp_unifi/clients/ids.py",
+  "src/mcp_unifi/modules/network/console.py",
+  "scripts/probe_integration_api.py",
+]
+
+[[rule]]
+tier = "T3"
+reason = "read-only gate, per-client scope, mutating-tool tags, stub or real backend, or the preview-then-confirm gate for deletes"
+paths = [
+  "src/mcp_unifi/scoping.py",
+  "src/mcp_unifi/dispatcher.py",
+  "src/mcp_unifi/modules/_audit.py",
+  "src/mcp_unifi/annotations.py",
+  "src/mcp_unifi/modules/network/_pending.py",
+  "src/mcp_unifi/modules/network/confirm.py",
+]
+
+[[rule]]
+tier = "T3"
+reason = "Network tool that changes controller state: firewall, port forwards, VLANs, WLANs, devices, clients, DHCP, routing, restore, or a composite"
+paths = [
+  "src/mcp_unifi/modules/network/backup.py",
+  "src/mcp_unifi/modules/network/clients.py",
+  "src/mcp_unifi/modules/network/composites.py",
+  "src/mcp_unifi/modules/network/content_filtering.py",
+  "src/mcp_unifi/modules/network/devices.py",
+  "src/mcp_unifi/modules/network/dhcp.py",
+  "src/mcp_unifi/modules/network/dynamic_dns.py",
+  "src/mcp_unifi/modules/network/firewall.py",
+  "src/mcp_unifi/modules/network/firewall_policies.py",
+  "src/mcp_unifi/modules/network/guest_portal.py",
+  "src/mcp_unifi/modules/network/honeypot.py",
+  "src/mcp_unifi/modules/network/ipv6.py",
+  "src/mcp_unifi/modules/network/observability.py",
+  "src/mcp_unifi/modules/network/port_forwards.py",
+  "src/mcp_unifi/modules/network/port_profiles.py",
+  "src/mcp_unifi/modules/network/routing.py",
+  "src/mcp_unifi/modules/network/teleport.py",
+  "src/mcp_unifi/modules/network/threat_management.py",
+  "src/mcp_unifi/modules/network/traffic.py",
+  "src/mcp_unifi/modules/network/vlans.py",
+  "src/mcp_unifi/modules/network/wlans.py",
+  "src/mcp_unifi/modules/network/_common.py",
+  "src/mcp_unifi/modules/network/_verify.py",
+  "src/mcp_unifi/modules/network/_zone_policy.py",
+]
+
+[[rule]]
+tier = "T3"
+reason = "Protect tool that changes camera recording, privacy, or motion settings"
+paths = ["src/mcp_unifi/modules/protect/__init__.py"]
+
+[[rule]]
+tier = "T3"
+reason = "backend or client that sends a controller write, retries one, builds its payload, or replays logged calls against a live controller"
+paths = [
+  "src/mcp_unifi/backends.py",
+  "src/mcp_unifi/clients/unifi.py",
+  "src/mcp_unifi/clients/protect.py",
+  "src/mcp_unifi/clients/integration.py",
+  "src/mcp_unifi/clients/integration_translate.py",
+  "src/mcp_unifi/clients/zone_policy.py",
+  "src/mcp_unifi/clients/retry.py",
+  "src/mcp_unifi/cli/replay.py",
+]
+
+[[rule]]
+tier = "T3"
+reason = "secret redaction on tool output, the audit log, logs, or trace spans"
+paths = [
+  "src/mcp_unifi/redaction.py",
+  "src/mcp_unifi/modules/network/_common.py",
+  "src/mcp_unifi/audit.py",
+  "src/mcp_unifi/logging_setup.py",
+  "src/mcp_unifi/telemetry.py",
+]
+
+[[rule]]
+tier = "T3"
+reason = "release or publish: GHCR image and signature, .dxt bundle, MCP Registry, Helm repo and docs on gh-pages, or the Smithery listing"
+paths = [
+  ".github/workflows/release.yml",
+  ".github/workflows/publish-mcp.yml",
+  ".github/workflows/helm-release.yml",
+  ".github/workflows/docs.yml",
+  "scripts/check_version_surfaces.sh",
+  "server.json",
+  "manifest.json",
+  "smithery.yaml",
+]
+
+[[rule]]
+tier = "T3"
+reason = "merges pull requests with no human review"
+paths = [".github/workflows/dependabot-auto-merge.yml"]
+
+[[rule]]
+tier = "T3"
+reason = "deployment image or Helm chart"
+paths = ["Dockerfile", ".dockerignore", "docker-compose*.yml", "charts/**"]
+
+[[rule]]
+tier = "T2"
+reason = "dependency change, which escalation-policy sends to William"
+paths = [
+  "pyproject.toml",
+  "requirements*.in",
+  "requirements*.lock",
+  "docs/site/package.json",
+  "docs/site/package-lock.json",
+]
+
+[[rule]]
+tier = "T2"
+reason = "CI, hooks, or agent policy"
+paths = [".github/**", ".agent-ops/**", ".pre-commit-config.yaml"]
+
+[[rule]]
+tier = "T2"
+reason = "eval code that sends a paid model-provider API key off the runner"
+paths = ["evals/model.py"]
+
+[[rule]]
+tier = "T1"
+reason = "tests or stub-only evals"
+paths = ["tests/**", "evals/**"]
+
+[[rule]]
+tier = "T0"
+reason = "documentation, changelog, or docs site content"
+paths = ["**/*.md", "docs/site/src/content/**", "docs/site/src/data/**"]
+
+[[content_rule]]
+tier = "T3"
+reason = "CI or hook change selects tests or changes the test service image"
+paths = [".github/**"]
+pattern = '''--ignore|(?:^|[\s"'=])-k(?:[\s"'=]|$)|continue-on-error|\bskip\b|^\s*image:\s*\S+'''
+
+[[content_rule]]
+tier = "T3"
+reason = "adds or removes a write tool, a write annotation, or a backend write call"
+paths = ["src/mcp_unifi/**"]
+pattern = '''\bmutates\s*=\s*True\b|\bannotations\s*=\s*(?:CREATE|WRITE_IDEMPOTENT|ACTION|DESTRUCTIVE(?:_ONCE)?)\b|\bbackend\.(?:create|update|delete|set|block|unblock|locate|reconnect|restart|trigger)_\w*\(|\bupsert_dhcp_lease\('''
